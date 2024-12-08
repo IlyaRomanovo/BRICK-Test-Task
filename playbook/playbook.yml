@@ -1,0 +1,50 @@
+---
+- name: Create user and configure SSH
+  hosts: staging_servers
+  become: yes
+
+  tasks:
+    - name: Create a new user
+      user:
+        name: brickdev
+        password: "{{ 'pass' | password_hash('sha512') }}"
+        shell: /bin/bash
+        state: present
+
+    - name: Allow host authorization via SSH by key
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication yes'
+        state: present
+      notify: Restart SSH Service
+
+    - name: Disable SSH login from root user
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+        state: present
+      notify: Restart SSH Service
+
+    - name: Add .ssh directory for user brickdev
+      file:
+        path: /home/brickdev/.ssh
+        state: directory
+        owner: brickdev
+        group: brickdev
+        mode: '0700'
+
+    - name: Copy the provided public key for the user brickdev
+      copy:
+        src: ./public_key.txt
+        dest: /home/brickdev/.ssh/authorized_keys
+        owner: brickdev
+        group: brickdev
+        mode: '0600'
+
+  handlers:
+    - name: Restart SSH Service
+      service:
+        name: ssh
+        state: restarted
